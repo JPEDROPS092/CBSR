@@ -1,0 +1,12 @@
+# Training / evaluation / export (train_export.py)
+numpy>=1.23
+pandas>=1.5
+opencv-python>=4.6
+scikit-image>=0.19
+scikit-learn>=1.2
+scipy>=1.9
+matplotlib>=3.6
+joblib>=1.2
+kagglehub>=0.2      # optional: auto-download PAD-UFES-20
+psutil>=5.9         # optional
+tqdm>=4.64          # optional

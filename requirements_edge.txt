@@ -1,0 +1,7 @@
+# Edge inference (edge_infer.py) — minimal footprint
+# For a Color+Meta model, scikit-image is NOT needed. Install it only if you
+# deploy a model whose feature_spec has texture=True (Color+Texture / All).
+numpy>=1.23
+opencv-python-headless>=4.6   # 'headless' avoids GUI libs on a Pi; use opencv-python if you want cv2.imshow
+joblib>=1.2
+# scikit-image>=0.19          # uncomment ONLY for texture-based models
