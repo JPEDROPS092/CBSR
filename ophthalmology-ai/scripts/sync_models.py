@@ -7,6 +7,12 @@ can reference a durable, versioned model record.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Allow running from a checkout without installing the package first.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from app.ai.models import bootstrap_registry
 from app.ai.registry import registry
 from app.api.routes.models import sync_registry_to_database

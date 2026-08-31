@@ -16,6 +16,10 @@ import argparse
 import getpass
 import os
 import sys
+from pathlib import Path
+
+# Allow running from a checkout without installing the package first.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.enums import UserRole
 from app.core.exceptions import AppError
