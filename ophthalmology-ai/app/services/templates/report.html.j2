@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ophthalmology AI Report — {{ analysis.analysis_id }}</title>
+  <style>
+    :root { color-scheme: light; }
+    body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+           margin: 0; padding: 32px; color: #16202c; background: #f7f8fa; }
+    main { max-width: 900px; margin: 0 auto; background: #fff; padding: 32px;
+           border: 1px solid #e2e6ec; border-radius: 8px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 28px 0 8px; text-transform: uppercase;
+         letter-spacing: .04em; color: #5a6674; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #eceff3;
+             vertical-align: top; font-size: 13px; }
+    th { background: #f3f5f8; font-weight: 600; }
+    .meta { color: #6a7583; font-size: 12px; }
+    .score { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 10px;
+            font-size: 11px; background: #eef2f7; color: #3c4a5a; }
+    .warn { background: #fff4e5; border: 1px solid #ffd9a8; padding: 12px;
+            border-radius: 6px; margin-top: 8px; }
+    .disclaimer { margin-top: 32px; padding: 16px; background: #fbfcfd;
+                  border: 1px solid #e2e6ec; border-radius: 6px; font-size: 12px;
+                  color: #48535f; }
+    code { font-size: 12px; background: #f3f5f8; padding: 1px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Ophthalmology AI — Analysis Report</h1>
+  <p class="meta">
+    Analysis <code>{{ analysis.analysis_id }}</code> ·
+    generated {{ generated_at }} · platform v{{ software_version }}
+  </p>
+
+  <h2>Exam</h2>
+  <table>
+    <tr><th>Patient (pseudonymous)</th><td>{{ patient.external_ref or patient.patient_id }}</td></tr>
+    <tr><th>Modality</th><td>{{ exam.modality }} · {{ exam.laterality }}</td></tr>
+    <tr><th>Acquired</th><td>{{ exam.acquired_at or "not recorded" }}</td></tr>
+    <tr><th>Device</th>
+        <td>{{ exam.device_manufacturer or "—" }} {{ exam.device_model or "" }}</td></tr>
+    <tr><th>Status</th><td>{{ analysis.status }}</td></tr>
+  </table>
+
+  {% if quality %}
+  <h2>Quality control</h2>
+  {% if quality.quality %}
+  <table>
+    <tr><th>Quality score</th><td class="score">{{ quality.quality.quality_score }}</td></tr>
+    <tr><th>Accepted</th><td>{{ "yes" if quality.quality.is_valid else "no" }}</td></tr>
+    <tr><th>Issues</th>
+        <td>{{ quality.quality.issues | join(", ") if quality.quality.issues else "none" }}</td></tr>
+    <tr><th>Recommendation</th><td>{{ quality.quality.recommendation }}</td></tr>
+  </table>
+  {% endif %}
+  {% if not quality.gate_passed %}
+  <p class="warn">The image did not pass quality control; downstream models were not run.</p>
+  {% endif %}
+  {% endif %}
+
+  <h2>Findings</h2>
+  {% if findings %}
+  <table>
+    <tr><th>Finding</th><th>Type</th><th>Value</th><th>Model</th></tr>
+    {% for item in findings %}
+    <tr>
+      <td>{{ item.name }}</td>
+      <td><span class="pill">{{ item.type }}</span></td>
+      <td class="score">
+        {% if item.score is not none %}{{ item.score }}
+        {% elif item.area_px is not none %}{{ item.area_px }} px
+          {%- if item.measurements and item.measurements.area_mm2 %}
+            ({{ "%.4f"|format(item.measurements.area_mm2) }} mm²){% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td class="meta">{{ item.model_id }} v{{ item.model_version }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="meta">No findings were produced by this analysis.</p>
+  {% endif %}
+
+  {% if measurements %}
+  <h2>Measurements</h2>
+  <table>
+    <tr><th>Model</th><th>Values</th></tr>
+    {% for model_id, values in measurements.items() %}
+    <tr><td class="meta">{{ model_id }}</td><td><code>{{ values }}</code></td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <h2>Models executed</h2>
+  <table>
+    <tr><th>Model</th><th>Version</th><th>Status</th><th>Evidence</th><th>Time</th></tr>
+    {% for model in models %}
+    <tr>
+      <td>{{ model.model_id }}</td>
+      <td class="meta">{{ model.version }}</td>
+      <td>{{ model.status }}{% if model.error_message %}
+          <div class="meta">{{ model.error_message }}</div>{% endif %}</td>
+      <td><span class="pill">{{ model.evidence_level or "unknown" }}</span></td>
+      <td class="meta">{% if model.processing_time_ms %}{{ model.processing_time_ms }} ms
+          on {{ model.device }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% for model in models if model.limitations %}
+  <p class="meta"><strong>{{ model.model_id }}:</strong> {{ model.limitations }}</p>
+  {% endfor %}
+
+  {% if artifacts %}
+  <h2>Explainability artifacts</h2>
+  <table>
+    <tr><th>Kind</th><th>Model</th><th>Location</th></tr>
+    {% for artifact in artifacts %}
+    <tr><td>{{ artifact.kind }}</td><td class="meta">{{ artifact.model_id }}</td>
+        <td class="meta"><code>{{ artifact.url }}</code></td></tr>
+    {% endfor %}
+  </table>
+  <p class="meta">
+    An explainability map shows where a model responded. It is not a justification
+    of the result.
+  </p>
+  {% endif %}
+
+  <div class="disclaimer">
+    <strong>Disclaimer (v{{ disclaimer.version }})</strong>
+    <p>{{ disclaimer.en }}</p>
+    <p>{{ disclaimer.pt }}</p>
+  </div>
+</main>
+</body>
+</html>

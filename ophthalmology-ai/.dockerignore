@@ -1,0 +1,22 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+.env
+storage-data
+*.db
+*.sqlite3
+docs/_build
+# Model weights are mounted at runtime, never baked into the image: they are
+# large and frequently carry licenses that forbid redistribution.
+models/**/*.pt
+models/**/*.pth
+models/**/*.onnx
+models/**/*.safetensors

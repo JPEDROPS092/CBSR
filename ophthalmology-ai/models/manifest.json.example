@@ -1,0 +1,44 @@
+{
+  "model_id": "oct_retinal_layers_v1",
+  "name": "OCT Retinal Layer Segmentation",
+  "version": "1.0.0",
+  "modality": "oct",
+  "task": "segmentation",
+  "framework": "onnx",
+  "weights_file": "layers_unet.onnx",
+  "weights_sha256": null,
+  "evidence_level": "research",
+  "description": "Multi-class retinal layer segmentation on a single B-scan.",
+  "input": {
+    "image_size": [496, 512],
+    "channels": 1,
+    "color_space": "gray",
+    "normalization_mean": [0.5],
+    "normalization_std": [0.5],
+    "scale_to_unit_interval": true,
+    "notes": "Values copied from the model's own documentation. Do not guess these."
+  },
+  "output": {
+    "segmentation_classes": [
+      "background", "rnfl", "gcl_ipl", "inl", "opl", "onl", "is_os", "rpe"
+    ],
+    "activation": "softmax",
+    "threshold": 0.5,
+    "units": {"layer_thickness_um": "micrometre"}
+  },
+  "license": {
+    "name": "REPLACE-ME",
+    "url": null,
+    "source_url": "https://…",
+    "dataset": "REPLACE-ME",
+    "dataset_license": "REPLACE-ME",
+    "commercial_use": "unknown",
+    "citation": "Author et al., Journal, Year",
+    "restrictions": "e.g. research use only"
+  },
+  "reported_metrics": {
+    "note": "Copy the authors' published metrics verbatim, with the dataset they were measured on. Leave empty if none were published."
+  },
+  "limitations": "Trained on one device and scan pattern; performance elsewhere is unknown.",
+  "supports_explainability": true
+}

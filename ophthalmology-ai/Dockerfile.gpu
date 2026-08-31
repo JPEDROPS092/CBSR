@@ -1,0 +1,46 @@
+# GPU image for inference workers.
+#
+# Build:  docker build -f Dockerfile.gpu -t ophthalmology-ai:gpu .
+# Run:    docker run --gpus all ophthalmology-ai:gpu
+#
+# The CUDA runtime version must match the host driver and the PyTorch build
+# selected below; check https://pytorch.org for the current pairing.
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install --no-install-recommends -y \
+        python3.11 python3.11-dev python3-pip curl libglib2.0-0 libgl1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python
+
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+# CUDA wheels for torch come from PyTorch's own index; everything else from PyPI.
+RUN pip install --upgrade pip \
+    && pip install --index-url https://download.pytorch.org/whl/cu124 \
+        "torch>=2.2" "torchvision>=0.17" \
+    && pip install ".[ml]"
+
+COPY app ./app
+COPY migrations ./migrations
+COPY scripts ./scripts
+COPY alembic.ini ./
+
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /app/models \
+    && chown -R appuser:appuser /app
+USER appuser
+
+ENV MODEL_DIR=/app/models \
+    DEVICE=auto \
+    TASK_QUEUE_BACKEND=celery
+
+# One process per GPU: concurrent processes on one device serialize anyway and
+# multiply VRAM usage.
+CMD ["celery", "-A", "app.workers.celery_app:celery_app", "worker", \
+     "-Q", "inference", "-c", "1", "--loglevel=info"]

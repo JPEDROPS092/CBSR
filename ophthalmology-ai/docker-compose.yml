@@ -1,0 +1,144 @@
+# Local stack: API, inference worker, PostgreSQL, Redis, MinIO.
+#
+#   docker compose up --build
+#   docker compose --profile tools up -d        # adds Flower
+#
+# Credentials here are development defaults. Replace every one of them before
+# putting this anywhere reachable.
+
+name: ophthalmology-ai
+
+x-app-env: &app-env
+  ENVIRONMENT: local
+  DATABASE_URL: postgresql+psycopg://ophthalmology:ophthalmology@postgres:5432/ophthalmology
+  REDIS_URL: redis://redis:6379/0
+  TASK_QUEUE_BACKEND: celery
+  STORAGE_BACKEND: s3
+  OBJECT_STORAGE_ENDPOINT: http://minio:9000
+  OBJECT_STORAGE_BUCKET: ophthalmology
+  OBJECT_STORAGE_ACCESS_KEY: minioadmin
+  OBJECT_STORAGE_SECRET_KEY: minioadmin
+  JWT_SECRET: development-only-secret-replace-me-please-32
+  MODEL_DIR: /app/models
+  DEVICE: auto
+  LOG_LEVEL: INFO
+  LOG_FORMAT: json
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    ports:
+      - "8000:8000"
+    volumes:
+      # Weights live outside the image: they are large and often carry licenses
+      # that forbid redistribution.
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    volumes:
+      - ./models:/app/models:ro
+    depends_on:
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A app.workers.celery_app:celery_app worker
+      -Q inference -c 1 --loglevel=info
+    # For GPU inference, swap this service to Dockerfile.gpu and add:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ophthalmology
+      POSTGRES_PASSWORD: ophthalmology
+      POSTGRES_DB: ophthalmology
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ophthalmology"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Creates the bucket once, then exits.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "mc alias set local http://minio:9000 minioadmin minioadmin &&
+             mc mb --ignore-existing local/ophthalmology &&
+             mc anonymous set none local/ophthalmology"
+
+  flower:
+    image: mher/flower:latest
+    profiles: ["tools"]
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

@@ -1,0 +1,29 @@
+# Model weights: large, and frequently licensed against redistribution.
+models/**/*.pt
+models/**/*.pth
+models/**/*.onnx
+models/**/*.safetensors
+models/**/*.ckpt
+models/**/*.bin
+# Installed model manifests are deployment configuration, not source.
+models/**/*.json
+
+# Local runtime data
+storage-data/
+*.db
+*.sqlite3
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
